@@ -1,0 +1,51 @@
+import { redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth";
+import {
+  getOrderViews,
+  getProducts,
+  getStore,
+  handoverSafeOrderView,
+} from "@/lib/db";
+import { StaffHeader } from "@/components/staff-header";
+import { MerchantDashboard } from "./merchant-dashboard";
+import { InsightsAssistant } from "@/components/insights-assistant";
+
+export const dynamic = "force-dynamic";
+export const metadata = { title: "Store dashboard" };
+
+export default async function MerchantPage() {
+  const session = await requireRole("merchant");
+  if (!session.storeId) redirect("/login?next=merchant");
+  const store = await getStore(session.storeId);
+  if (!store) redirect("/login?next=merchant");
+  const products = await getProducts(store.id);
+  const orders = (await getOrderViews({ storeId: store.id })).map(
+    handoverSafeOrderView,
+  );
+
+  return (
+    <div className="staff-shell">
+      <StaffHeader
+        session={session}
+        title={store.name}
+        subtitle={`${store.citySlug} · store workspace`}
+        links={[
+          ...(store.category === "grocery"
+            ? [{ href: "/merchant/grocery", label: "Grocery catalog & stock" }]
+            : []),
+          { href: "/merchant/messages", label: "Messages" },
+        ]}
+      />
+      <main className="container-wassl py-6">
+        <div className="mb-4">
+          <InsightsAssistant role="merchant" />
+        </div>
+        <MerchantDashboard
+          store={store}
+          initialProducts={products}
+          initialOrders={orders}
+        />
+      </main>
+    </div>
+  );
+}

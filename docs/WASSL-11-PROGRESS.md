@@ -1,0 +1,327 @@
+# Wassl 11.0 — implementation progress
+
+Target: **11.0.0** unified Moroccan super-app.
+Current delivered baseline: **11.3.1** (1 November 2026).
+Production: not deployed from this milestone without explicit authorization.
+
+This document records exact progress. It is not a claim that the full 11.0
+programme is complete.
+
+---
+
+## Delivered in 11.0.0-alpha.1
+
+### Unified search
+
+- New `/search` page and `/api/search`.
+- Searches persisted Wassl data across:
+  - restaurants, cafés, grocery, pharmacy and gift stores
+  - products, including SKU, barcode, brand, aisle and variants
+  - store categories and grocery aisles
+  - enabled services for the selected city
+  - pickup, express and scheduled delivery options
+- Recent searches stored locally.
+- Suggestions and grouped results.
+- Latin and Arabic normalization, diacritic stripping and bounded
+  Levenshtein typo tolerance.
+- City selector and city-aware ranking.
+- Search entry point in the desktop nav, header icon and mobile menu.
+- Product results deep-link to `/store/[slug]?product=[id]` and open the product
+  sheet; store results open the storefront.
+- City and grocery pages accept query/category/filter parameters from search.
+
+### Deterministic personalized home
+
+- New “For you” section built from:
+  - recent purchased products and reorder suggestions
+  - frequently ordered stores
+  - favourites
+  - popular in-stock grocery products
+  - nearby open stores
+  - Casablanca time of day
+  - city-valid promotions
+- Works without any external AI provider.
+- Cold-start users see real popular and open stores from their city.
+- No invented availability, prices or promises.
+
+### Service-level city activation
+
+- `City.services` supports restaurant, grocery, taxi, Express, local services and
+  business independently.
+- Admin **Cities → Services** edits the matrix per city, with an audit record.
+- Existing live cities default to restaurant, grocery and taxi on; Express,
+  services and business default off.
+- Home doors, desktop/mobile navigation and search service results respect the
+  active services.
+- Turning one service off never disables the others.
+
+### Grocery 2.0 subset
+
+- **Wassl Basket** at `/grocery/basket`: searches grocery products across
+  stores, compares prices, groups lines by store, shows per-store delivery fees
+  and minimums, and lets the customer choose substitutions.
+- **Split checkout** at `/grocery/basket/checkout`: one delivery address creates
+  one independent cash order per store. Each order keeps its own delivery fee,
+  driver and handover code. Successful stores are removed from the basket;
+  failed stores remain for retry with idempotency keys.
+- **Barcode lookup** at `/grocery/scan` and `/api/grocery/barcode`: camera
+  scanning when `BarcodeDetector` is available, manual entry everywhere.
+- **Recurring baskets**: shopping lists store weekly/monthly frequency, a next
+  reminder date and a remind toggle. No automatic orders are placed.
+- Unit tests cover grouping, fees, minimums, malformed storage, stock caps,
+  mixed cities and recurring dates.
+- Playwright covers barcode → basket and recurring-list settings.
+
+### Grocery intelligence and promotions
+
+- Smart shopping assistant at `/grocery/assistant` with deterministic recipe
+  matching, cheapest-product intent, usual-purchase suggestions and an editable
+  list that adds to Wassl Basket.
+- Server-side grocery promotion engine: flash, quantity, bulk, scheduled and
+  store-wide offers. Discounts are applied in `createOrder`; badges appear on
+  the grocery storefront. Default merchant-specific offers are seeded.
+- Inventory intelligence: sales velocity, top sellers, slow movers, suggested
+  restock, one-click restock and recent stock movements.
+- Still missing: a merchant/admin promotion builder, manual stock-adjustment
+  history and replenishment forecasting beyond the 14-day velocity model.
+
+### Wassl Club core
+
+- Immutable loyalty ledger with opening-balance migration.
+- Basic / Plus / Premium tiers with lifetime progress.
+- Earn on completed orders, redeem at grocery checkout, return points on
+  cancellation, audited admin adjustments.
+- Customer dashboard at `/account/loyalty` with points, history and rewards.
+- Still missing: referral attribution, birthday rewards, reward redemption
+  codes, expiration jobs, campaign bonuses and admin threshold/ratio controls.
+
+### Support, messaging and ratings
+
+- Customer, driver, store and admin conversations share one `ChatThread` /
+  `ChatMessage` ledger with role-scoped access.
+- Customer support threads start with the NVIDIA-backed Wassl Assistant; a
+  human admin, merchant or driver reply disables automatic replies.
+- `/messages`, `/driver/messages`, `/merchant/messages` and `/admin/messages`
+  provide inboxes. Order, ride, store and account pages link into them.
+- Post-order and post-ride ratings support a 1–5 score and optional comment,
+  reject duplicates and update the store/driver average.
+- AI is optional: without `NVIDIA_API_KEY`, the thread saves the message and
+  offers human support instead of inventing an answer.
+
+### Wassl 11 identity
+
+- Original vector monogram, Latin/Arabic wordmarks, horizontal/stacked lockups,
+  transparent, reversed and monochrome variants.
+- 32/48/192/512 icons, maskable icon, Apple touch icon and favicon.
+- Regenerated Android/iOS/PWA assets and splash screens.
+- Four full themes: Coastal, Aero, Midnight and Sand, each with light and dark
+  tokens.
+- Signature palette and WCAG checks documented in `docs/BRAND-11.md`.
+
+### Wassl Express
+
+- Customer booking at `/express` with map pickup/drop-off, recipient details,
+  four package sizes, distance-based cash fare and 80 km local limit.
+- Pickup and delivery codes; drivers must enter them at collection and handover
+  and never receive either code in advance.
+- Driver queue at `/driver/express`, admin operations at `/admin/express` and
+  tracking at `/express/[id]`.
+- Express is enabled for live cities by default and can be disabled per city.
+
+### Club referrals and birthday
+
+- Referral codes and a one-time 100-point reward for both accounts.
+- Birthday storage and a yearly 100-point reward, awarded once per year.
+- Dashboard controls for both.
+
+### Insights and alerts
+
+- Read-only merchant/admin AI insights over real store/platform data.
+- Admin alerts for missing drivers, stalled orders, offline drivers, stalled
+  parcels, low stock, refund backlog and cancellation spikes.
+
+### Services, Business and Taxi 2.0
+
+- Local services marketplace with seeded providers, booking requests, provider
+  access-code workspace and admin operations.
+- Business wholesale accounts, approval, wholesale catalog and bulk order
+  requests with admin confirmation.
+- Taxi 2.0: scheduled rides, intercity/airport requests, multiple stops,
+  passengers, luggage, notes, shareable live links and lost-and-found.
+- Merchant/admin insights and operational alerts.
+
+Remaining polish: taxi demand heatmaps and zone editor, provider self-service
+applications, merchant staff roles and campaign-builder UI. These are roadmap
+enhancements, not blocking the v11 core release.
+
+### Launch splash
+
+- Branded first-open splash with animated monogram, tangerine node, wordmark,
+  progress line and skip.
+- Runs on every full app launch/reload; internal navigation is splash-free.
+- Reduced-motion skip remains.
+- iOS PWA startup images and service-worker cache refresh.
+
+### Cobalt and tangerine palette
+
+- New default palette: Wassl Blue, Night Ink, Limestone and Signal Tangerine.
+- Recoloured all four themes, dark mode, splash, PWA icons, launch images,
+  offline shell, OTP email, map routes and confetti.
+- WCAG AA palette coverage added to the brand tests.
+
+### Tab scroll fix
+
+- Client-side navigation now resets to the top of every new route.
+- Browser back/forward still restores the previous scroll position.
+- Regression covered by Playwright.
+
+### Pharmacy, promo ticker and focused launcher
+
+- Four launcher services: Food to go, Grocery, Pharmacy and Taxi.
+- Express, Services and Business are no longer in customer navigation.
+- New `/pharmacy` route with partners, stock and OTC guidance.
+- Home promo/news ticker with copyable codes and reduced-motion fallback.
+- "See all restaurants and cafés" moved below the cards.
+
+### Simple launcher home
+
+- Launcher-first home: one search field, quick links, active jobs, six service
+  tiles, open-now picks. Editorial sections removed.
+- Calmer mobile header and a scroll-safe menu.
+- Five-tab dock with services accessible from the launcher.
+- Update prompt no longer appears on a first install.
+
+### Persistent cart and chrome
+
+- Floating cart pill after items are added, with count, subtotal and cart link.
+- Sticky top header on all breakpoints.
+- Fixed six-tab mobile dock verified at 320–1440px.
+- Page pinch/double-tap zoom locked while map gestures remain usable.
+
+### Supporting changes
+
+- `src/lib/db.ts` adds `getPopularProducts()`.
+- `src/lib/search.ts` is a pure, testable search scorer.
+- `src/lib/personalization.ts` is a pure, testable feed builder.
+- Added `tests/search.test.ts`, `tests/personalization.test.ts` and
+  `tests/city-services.test.ts`.
+- Added two Playwright cases for typo search/product deep links and the home
+  feed, plus an admin city-services case.
+
+---
+
+## Verification
+
+- `npx tsc --noEmit` — clean.
+- `npm test` — 124 passed, 4 skipped.
+- `npm run e2e` — 22 passed.
+- `npm run build` — clean.
+- Manual checks at 1440px and 390px: no horizontal overflow on home or search.
+- Product deep link opens the product dialog.
+- Search supports `dakhla gril` → Dakhla Grill.
+- Home “For you” renders six real cards and city-valid promotions.
+
+---
+
+## Feature status against the 11.0 brief
+
+| Area | Status | Notes |
+|---|---|---|
+| Unified identity, account, addresses, notifications | Delivered | Support centre still missing |
+| Shared favourites | Partial | Grocery product favourites; merchant favourites remain |
+| Shared order history | Delivered | Orders and taxi rides share `/orders` tabs |
+| Unified search | Delivered (alpha) | Taxi saved destinations arrive with Taxi 2.0 |
+| Service-level city activation | Delivered | Admin per-city service matrix |
+| Unified design language | Delivered | Coastal Manifest + Aero glass |
+| Consistent bottom navigation | Delivered | Delivery, grocery, taxi, orders and account remain visible |
+| Home prioritization | Partial | Restaurants, grocery, taxi, services and business exist; Express and local services await their workflows |
+| Personalized discovery | Delivered (deterministic) | Uses real orders, favourites, stock, hours and time of day |
+| Grocery 2.0 | Delivered (core) | Basket, split checkout, barcode, recurring lists, assistant, promotions and inventory intelligence delivered; merchant promotion builder and deeper forecasting remain |
+| Wassl Club | Partial | Ledger, tiers, earn/redeem, dashboard and admin adjustments delivered; referrals, birthday, reward codes, expiry and campaign controls remain |
+| Wassl AI | Partial | Customer support assistant with NVIDIA, real context, rate limits and human fallback; merchant/admin assistants remain |
+| Taxi 2.0 | Delivered (core) | Scheduled, intercity, stops, share link and lost-and-found delivered; heatmaps/zone editor remain |
+| Wassl Express | Delivered | Booking, driver queue, handover codes, tracking and admin operations |
+| Local services marketplace | Delivered (core) | Seeded providers, bookings, provider workspace and admin operations; self-service provider applications remain |
+| Business / wholesale | Delivered (core) | Applications, approval, wholesale catalog and bulk requests; invoicing/credit remain |
+| Merchant Growth 2.0 | Partial | Insights, inventory and promotions delivered; staff roles and campaign builder remain |
+| Driver Intelligence 2.0 | Partial | GPS, queue and wallet; heatmaps, break/emergency, incentives, batch |
+| Admin Intelligence 2.0 | Partial | Profit analytics, city service matrix and support inbox delivered; proactive alerts remain |
+| Advanced retention | Partial | Ratings, support and referrals/birthday delivered; achievements, reminders and abandoned cart remain |
+| Maps and routing | Partial | MapLibre/OSM; no routing abstraction |
+| Security and privacy | Strong baseline | New verticals and AI tools still need validation |
+
+---
+
+## Files changed in this milestone
+
+- `src/lib/search.ts` — new search scorer and result builder.
+- `src/lib/city-services.ts` — new service defaults, merge and sanitisation.
+- `src/lib/basket.ts` — cross-store basket grouping, totals and recurring dates.
+- `src/lib/grocery-assistant.ts` — deterministic shopping assistant.
+- `src/lib/grocery-promotions.ts` — server-validated grocery offers.
+- `src/lib/inventory.ts` — inventory and replenishment intelligence.
+- `src/lib/loyalty.ts` — tiers, earning rules and rewards.
+- `src/lib/ai.ts` — NVIDIA NIM provider with bounded retry and graceful fallback.
+- `src/lib/express.ts` — parcel pricing and state transitions.
+- `src/lib/alerts.ts` — deterministic operational alerts.
+- `src/components/chat-workspace.tsx` — shared customer/driver/merchant/admin inbox.
+- `src/components/rating-prompt.tsx` — post-order and post-ride rating UI.
+- `public/brand/` and `assets/` — original vector and native brand assets.
+- `docs/BRAND-11.md` — identity, tokens, contrast and asset rules.
+- `src/lib/personalization.ts` — new deterministic home-feed builder.
+- `src/app/api/search/route.ts` — new search API.
+- `src/app/search/page.tsx` — search route shell.
+- `src/app/search/search-experience.tsx` — search UI.
+- `src/components/home-feed.tsx` — personalized home section.
+- `src/components/site-header.tsx` — search entry points.
+- `src/app/page.tsx` — customer history, popular products and home feed.
+- `src/app/store/[slug]/page.tsx` — product deep links.
+- `src/components/store-menu.tsx` — opening a deep-linked product.
+- `src/components/grocery-store.tsx` — opening a deep-linked product.
+- `src/app/city/[slug]/page.tsx` — query/category parameters.
+- `src/components/store-browser.tsx` — initial query/category.
+- `src/app/grocery/page.tsx` — query/filter parameters.
+- `src/app/grocery/grocery-browser.tsx` — initial query/filter.
+- `src/lib/db.ts` — popular products query and city service patch.
+- `src/app/grocery/basket/` — planner and split checkout.
+- `src/app/grocery/scan/` — barcode scanner.
+- `src/app/api/grocery/barcode/route.ts` — barcode resolution.
+- `src/app/grocery/lists/lists-view.tsx` — recurring list controls.
+- `src/app/admin/admin-console.tsx` — per-city services dialog.
+- `src/app/api/admin/cities/route.ts` — service patch validation.
+- `src/lib/i18n.ts` — EN/FR/ES/AR strings.
+- `tests/search.test.ts` — new.
+- `tests/personalization.test.ts` — new.
+- `tests/city-services.test.ts` — new.
+- `tests/basket.test.ts` — new.
+- `tests/grocery-assistant.test.ts` — new.
+- `tests/grocery-promotions.test.ts` — new.
+- `tests/inventory.test.ts` — new.
+- `tests/loyalty.test.ts` — new.
+- `tests/chat.test.ts` — new.
+- `tests/brand.test.ts` — new.
+- `tests/express.test.ts` — new.
+- `e2e/customer.spec.ts` — two new cases.
+- `README.md`, `AGENTS.md`, `package.json` — milestone documentation.
+
+---
+
+## Exact next steps
+
+1. **Phase 1B — remaining foundations**
+   - Merchant favourites and shared favourite surfaces.
+   - Server-validated promotion engine foundation for flash, quantity and bulk
+     offers.
+   - Support-ticket base and notification preferences.
+2. **Phase 2 — Grocery 2.0 remaining**
+   - Merchant/admin promotion builder.
+   - Manual stock-adjustment history and richer forecasting.
+3. **Phase 3 — Wassl Club remaining**
+   - Referral attribution, birthday rewards, reward redemption codes, expiration
+     jobs, campaign bonuses and admin ratio/threshold controls.
+4. **Later phases**
+   - Merchant Growth, Driver Intelligence, Taxi 2.0, Express, Services,
+     Business, AI and Admin Intelligence.
+
+No production deployment has been performed for this milestone. The live site
+remains on 10.8.0 until an explicit deployment instruction is given.
